@@ -38,7 +38,7 @@ jobs:
           export PATH="${GITHUB_WORKSPACE}/clang-toolchain/bin:$PATH"
           export ARCH=arm64
           export O=out
-          make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 vendor/kona-perf_defconfig
+          make O=out ARCH=arm64 HOSTCC=/usr/bin/gcc HOSTCXX=/usr/bin/g++ HOSTLD=/usr/bin/ld CC=clang LLVM=1 LLVM_IAS=1 vendor/kona-perf_defconfig
           chmod +x scripts/config
           scripts/config --file out/.config \
             -e PID_NS -e IPC_NS -e CGROUP_DEVICE -e BRIDGE_NETFILTER \
@@ -52,13 +52,16 @@ jobs:
             -e IP_VS -e IP_VS_NFCT -e IP_VS_PROTO_TCP -e IP_VS_PROTO_UDP -e IP_VS_RR \
             -e VXLAN -e BRIDGE_VLAN_FILTERING -e IPVLAN -e MACVLAN \
             -e DUMMY -e VETH
-          make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 olddefconfig
+          make O=out ARCH=arm64 HOSTCC=/usr/bin/gcc HOSTCXX=/usr/bin/g++ HOSTLD=/usr/bin/ld CC=clang LLVM=1 LLVM_IAS=1 olddefconfig
   
       - name: Build Kernel
         working-directory: kernel_workspace
         run: |
           export PATH="${GITHUB_WORKSPACE}/clang-toolchain/bin:$PATH"
           make -j$(nproc) O=out ARCH=arm64 \
+            HOSTCC=/usr/bin/gcc \
+            HOSTCXX=/usr/bin/g++ \
+            HOSTLD=/usr/bin/ld \
             CC=clang \
             LLVM=1 \
             LLVM_IAS=1 \
