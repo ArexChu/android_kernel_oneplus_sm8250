@@ -31,9 +31,20 @@ jobs:
         run: |
           git clone --depth=1 -b ${{ env.KERNEL_BRANCH }} ${{ env.KERNEL_SOURCE }} kernel-workspace
 
-      - name: Configure Docker Support
+      - name: Configure and Build Kernel
         working-directory: kernel-workspace
         run: |
+          MAKE_ARGS="O=out ARCH=arm64 \
+            CC=clang \
+            LD=ld.lld \
+            AR=llvm-ar \
+            NM=llvm-nm \
+            OBJCOPY=llvm-objcopy \
+            OBJDUMP=llvm-objdump \
+            STRIP=llvm-strip \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
+            KCFLAGS=-Wno-error"
           cat << 'EOF' > docker.config
           CONFIG_NAMESPACES=y
           CONFIG_NET_NS=y
@@ -73,23 +84,10 @@ jobs:
           CONFIG_TUN=y
           CONFIG_BLK_CGROUP=y
           EOF
-          make O=out ARCH=arm64 ${{ env.DEFCONFIG }}
-          ./scripts/kconfig/merge_config.sh -O out out/.config docker.config
-
-      - name: Build Kernel
-        working-directory: kernel-workspace
-        run: |
-          make -j$(nproc) O=out ARCH=arm64 \
-            CC=clang \
-            LD=ld.lld \
-            AR=llvm-ar \
-            NM=llvm-nm \
-            OBJCOPY=llvm-objcopy \
-            OBJDUMP=llvm-objdump \
-            STRIP=llvm-strip \
-            CROSS_COMPILE=aarch64-linux-gnu- \
-            CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
-            KCFLAGS="-Wno-error"
+          make $MAKE_ARGS ${{ env.DEFCONFIG }}
+          cat docker.config >> out/.config
+          make $MAKE_ARGS olddefconfig
+          make -j$(nproc) $MAKE_ARGS
 
       - name: Package with AnyKernel3
         run: |
