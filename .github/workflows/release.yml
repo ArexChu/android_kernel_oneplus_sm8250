@@ -1,0 +1,104 @@
+name: Build Android kernel oneplus sm8250
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      DEFCONFIG:
+        description: 'Kernel Defconfig'
+        required: true
+        default: 'vendor/kona-perf_defconfig'
+      BOOT_IMG_URL:
+        description: 'LineageOS boot.img download url'
+        required: true
+        default: 'https://mirrors.ustc.edu.cn/lineageos/full/kebab/20261009/boot.img'
+
+jobs:
+  build:
+    name: Build android kernel Image
+    runs-on: ubuntu-24.04
+    
+    steps:
+      - name: Checkout Kernel Source
+        uses: actions/checkout@v4
+        with:
+          repository: LineageOS/android_kernel_oneplus_sm8250
+          ref: lineage-23.2
+          path: kernel_workspace
+  
+      - name: Install Dependencies & Toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bc bison build-essential ccache curl flex \
+            g++-multilib gcc-multilib git gnupg gperf lib32ncurses5-dev \
+            lib32readline-dev lib32z1-dev liblz4-tool libncurses5-dev \
+            libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop pngcrush \
+            rsync schedtool squashfs-tools xsltproc zip zlib1g-dev \
+            python2 python3 python-is-python3
+          sudo apt-get install -y clang lld gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi
+  
+      - name: Configure Kernel for Docker
+        working-directory: kernel_workspace
+        run: |
+          export ARCH=arm64
+          export O=out
+          make O=out ARCH=arm64 ${{ github.event.inputs.DEFCONFIG }}
+          chmod +x scripts/config
+          scripts/config --file out/.config \
+            -e PID_NS -e IPC_NS -e CGROUP_DEVICE -e BRIDGE_NETFILTER \
+            -e IP6_NF_TARGET_MASQUERADE -e NETFILTER_XT_MATCH_ADDRTYPE \
+            -e NETFILTER_XT_MATCH_IPVS -e IP6_NF_NAT -e POSIX_MQUEUE \
+            -e NF_NAT_IPV4 -e NF_NAT_NEEDED -e CGROUP_BPF
+          scripts/config --file out/.config \
+            -e USER_NS -e CGROUP_PIDS -e BLK_DEV_THROTTLING \
+            -e CGROUP_PERF -e CGROUP_HUGETLB -e NET_CLS_CGROUP \
+            -e CGROUP_NET_PRIO -e CFS_BANDWIDTH \
+            -e IP_VS -e IP_VS_NFCT -e IP_VS_PROTO_TCP -e IP_VS_PROTO_UDP -e IP_VS_RR \
+            -e VXLAN -e BRIDGE_VLAN_FILTERING -e IPVLAN -e MACVLAN \
+            -e DUMMY -e VETH
+          make O=out ARCH=arm64 olddefconfig
+  
+      - name: Build Kernel
+        working-directory: kernel_workspace
+        run: |
+          make -j$(nproc) O=out ARCH=arm64 \
+            CC=clang \
+            LLVM=1 \
+            LLVM_IAS=1 \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            CROSS_COMPILE_COMPAT=arm-linux-gnueabi- \
+            Image.gz dtbs
+  
+      - name: Download Official boot.img & AOSP mkbootimg tools
+        run: |
+          mkdir -p repack_workspace
+          cd repack_workspace
+          echo "Downloading official boot.img from: ${{ github.event.inputs.BOOT_IMG_URL }}"
+          curl -L -o boot.img "${{ github.event.inputs.BOOT_IMG_URL }}"
+          curl -L -o mkbootimg.py https://raw.githubusercontent.com/aosp-mirror/platform_system_tools_mkbootimg/master/mkbootimg.py
+          curl -L -o unpack_bootimg.py https://raw.githubusercontent.com/aosp-mirror/platform_system_tools_mkbootimg/master/unpack_bootimg.py
+          chmod +x mkbootimg.py unpack_bootimg.py
+  
+      - name: Unpack, Replace Kernel, and Repack boot.img
+        run: |
+          cd repack_workspace
+          mkdir unpack_dir
+          echo "Unpacking official boot.img..."
+          MKBOOTIMG_ARGS=$(python3 unpack_bootimg.py --boot_img boot.img --out unpack_dir --format mkbootimg)
+          echo "Parsed AOSP mkbootimg args: $MKBOOTIMG_ARGS"
+          echo "Replacing kernel with newly built Image.gz..."
+          cp ../kernel_workspace/out/arch/arm64/boot/Image.gz unpack_dir/kernel
+          echo "Repacking into new-boot.img..."
+          python3 mkbootimg.py $MKBOOTIMG_ARGS -o new-boot.img
+          echo "Successfully created new-boot.img!"
+
+      - name: Upload binary to Release
+        uses: softprops/action-gh-release@v3
+        with:
+          files: |
+            kernel_workspace/*.gz
+            repack_workspace/*.img
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
