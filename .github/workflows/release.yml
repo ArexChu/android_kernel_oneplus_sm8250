@@ -34,18 +34,7 @@ jobs:
       - name: Configure and Build Kernel
         working-directory: kernel-workspace
         run: |
-          MAKE_ARGS="O=out ARCH=arm64 \
-            CC=clang \
-            LD=ld.lld \
-            AR=llvm-ar \
-            NM=llvm-nm \
-            OBJCOPY=llvm-objcopy \
-            OBJDUMP=llvm-objdump \
-            STRIP=llvm-strip \
-            CROSS_COMPILE=aarch64-linux-gnu- \
-            CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
-            LLVM_IAS=0 \
-            KCFLAGS=-Wno-error"
+          sed -i '1i #include "smb5-lib.h"' drivers/power/supply/qcom/schgm-flash.c
           cat << 'EOF' > docker.config
           CONFIG_NAMESPACES=y
           CONFIG_NET_NS=y
@@ -85,10 +74,22 @@ jobs:
           CONFIG_TUN=y
           CONFIG_BLK_CGROUP=y
           EOF
-          make $MAKE_ARGS ${{ env.DEFCONFIG }}
+          RELAX_FLAGS="-Wno-error -Wno-implicit-function-declaration -Wno-int-conversion -Wno-incompatible-pointer-types"
+          make O=out ARCH=arm64 \
+            CC=clang LD=ld.lld AR=llvm-ar NM=llvm-nm OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip \
+            CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- LLVM_IAS=0 \
+            KCFLAGS="$RELAX_FLAGS" \
+            ${{ env.DEFCONFIG }}
           cat docker.config >> out/.config
-          make $MAKE_ARGS olddefconfig
-          make -j1 $MAKE_ARGS
+          make O=out ARCH=arm64 \
+            CC=clang LD=ld.lld AR=llvm-ar NM=llvm-nm OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip \
+            CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- LLVM_IAS=0 \
+            KCFLAGS="$RELAX_FLAGS" \
+            olddefconfig
+          make -j$(nproc) O=out ARCH=arm64 \
+            CC=clang LD=ld.lld AR=llvm-ar NM=llvm-nm OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip \
+            CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- LLVM_IAS=0 \
+            KCFLAGS="$RELAX_FLAGS"
 
       - name: Package with AnyKernel3
         run: |
