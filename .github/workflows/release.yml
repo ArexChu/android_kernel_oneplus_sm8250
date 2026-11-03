@@ -44,6 +44,7 @@ jobs:
             STRIP=llvm-strip \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
+            LLVM_IAS=0 \
             KCFLAGS=-Wno-error"
           cat << 'EOF' > docker.config
           CONFIG_NAMESPACES=y
@@ -87,7 +88,7 @@ jobs:
           make $MAKE_ARGS ${{ env.DEFCONFIG }}
           cat docker.config >> out/.config
           make $MAKE_ARGS olddefconfig
-          make -j$(nproc) $MAKE_ARGS
+          make -j1 $MAKE_ARGS
 
       - name: Package with AnyKernel3
         run: |
