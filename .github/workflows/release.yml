@@ -1,100 +1,113 @@
-name: Build Android kernel oneplus sm8250
+name: Build OnePlus 8T Kernel (with Docker Support)
 
 on:
   push:
     tags:
       - "v*"
 
+env:
+  KERNEL_SOURCE: "https://github.com/LineageOS/android_kernel_oneplus_sm8250"
+  KERNEL_BRANCH: "lineage-23.2"
+  DEFCONFIG: "vendor/kona-perf_defconfig"
+  ANYKERNEL3_URL: "https://github.com/osm0sis/AnyKernel3"
+
 jobs:
   build:
-    name: Build android kernel Image
-    runs-on: ubuntu-20.04
-    
+    name: Build Kernel on ARM64
+    runs-on: ubuntu-24.04-arm
+
     steps:
-      - name: Checkout Kernel Source
+      - name: Checkout Repository
         uses: actions/checkout@v6
-        with:
-          repository: LineageOS/android_kernel_oneplus_sm8250
-          ref: lineage-23.2
-          path: kernel_workspace
-  
-      - name: Install Dependencies & Toolchain
+
+      - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y bc bison build-essential ccache curl flex \
-            g++-multilib gcc-multilib git gnupg gperf lib32ncurses5-dev \
-            lib32readline-dev lib32z1-dev liblz4-tool libncurses5-dev \
-            libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop pngcrush \
-            rsync schedtool squashfs-tools xsltproc zip zlib1g-dev \
-            python2 python3 python-is-python3
-  
-      - name: Download Proton-Clang Toolchain
-        run: |
-          git clone --depth=1 https://github.com/kdrag0n/proton-clang.git clang-toolchain
+          sudo apt-get install -y git ccache flex bison build-essential \
+            libssl-dev libelf-dev bc python3 curl wget zip unzip \
+            clang lld llvm gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi
 
-      - name: Configure Kernel for Docker
-        working-directory: kernel_workspace
+      - name: Clone Kernel Source
         run: |
-          export PATH="${GITHUB_WORKSPACE}/clang-toolchain/bin:$PATH"
-          export ARCH=arm64
-          export O=out
-          make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 vendor/kona-perf_defconfig
-          chmod +x scripts/config
-          scripts/config --file out/.config \
-            -e PID_NS -e IPC_NS -e CGROUP_DEVICE -e BRIDGE_NETFILTER \
-            -e IP6_NF_TARGET_MASQUERADE -e NETFILTER_XT_MATCH_ADDRTYPE \
-            -e NETFILTER_XT_MATCH_IPVS -e IP6_NF_NAT -e POSIX_MQUEUE \
-            -e NF_NAT_IPV4 -e NF_NAT_NEEDED -e CGROUP_BPF
-          scripts/config --file out/.config \
-            -e USER_NS -e CGROUP_PIDS -e BLK_DEV_THROTTLING \
-            -e CGROUP_PERF -e CGROUP_HUGETLB -e NET_CLS_CGROUP \
-            -e CGROUP_NET_PRIO -e CFS_BANDWIDTH \
-            -e IP_VS -e IP_VS_NFCT -e IP_VS_PROTO_TCP -e IP_VS_PROTO_UDP -e IP_VS_RR \
-            -e VXLAN -e BRIDGE_VLAN_FILTERING -e IPVLAN -e MACVLAN \
-            -e DUMMY -e VETH
-          make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 olddefconfig
-  
+          git clone --depth=1 -b ${{ env.KERNEL_BRANCH }} ${{ env.KERNEL_SOURCE }} kernel-workspace
+
+      - name: Configure Docker Support
+        working-directory: kernel-workspace
+        run: |
+          cat << 'EOF' > docker.config
+          CONFIG_NAMESPACES=y
+          CONFIG_NET_NS=y
+          CONFIG_PID_NS=y
+          CONFIG_IPC_NS=y
+          CONFIG_UTS_NS=y
+          CONFIG_USER_NS=y
+          CONFIG_CGROUPS=y
+          CONFIG_CGROUP_CPUACCT=y
+          CONFIG_CGROUP_DEVICE=y
+          CONFIG_CGROUP_FREEZER=y
+          CONFIG_CGROUP_SCHED=y
+          CONFIG_CPUSETS=y
+          CONFIG_MEMCG=y
+          CONFIG_KEYS=y
+          CONFIG_VETH=y
+          CONFIG_BRIDGE=y
+          CONFIG_BRIDGE_NETFILTER=y
+          CONFIG_NETFILTER_XT_MATCH_ADDRTYPE=y
+          CONFIG_NETFILTER_XT_MATCH_CONNTRACK=y
+          CONFIG_NETFILTER_XT_MATCH_IPVS=y
+          CONFIG_IP_NF_FILTER=y
+          CONFIG_IP_NF_NAT=y
+          CONFIG_IP_NF_TARGET_MASQUERADE=y
+          CONFIG_IP_NF_TARGET_REJECT=y
+          CONFIG_NETFILTER_XT_MARK=y
+          CONFIG_NETFILTER_XT_SET=y
+          CONFIG_IP_VS=y
+          CONFIG_IP_VS_IPV4=y
+          CONFIG_IP_VS_RR=y
+          CONFIG_POSIX_MQUEUE=y
+          CONFIG_OVERLAY_FS=y
+          CONFIG_SECCOMP=y
+          CONFIG_SECCOMP_FILTER=y
+          CONFIG_BPF_SYSCALL=y
+          CONFIG_CGROUP_BPF=y
+          CONFIG_TUN=y
+          CONFIG_BLK_CGROUP=y
+          EOF
+          make O=out ARCH=arm64 ${{ env.DEFCONFIG }}
+          ./scripts/kconfig/merge_config.sh -O out out/.config docker.config
+
       - name: Build Kernel
-        working-directory: kernel_workspace
+        working-directory: kernel-workspace
         run: |
-          export PATH="${GITHUB_WORKSPACE}/clang-toolchain/bin:$PATH"
           make -j$(nproc) O=out ARCH=arm64 \
             CC=clang \
-            LLVM=1 \
-            LLVM_IAS=1 \
+            LD=ld.lld \
+            AR=llvm-ar \
+            NM=llvm-nm \
+            OBJCOPY=llvm-objcopy \
+            OBJDUMP=llvm-objdump \
+            STRIP=llvm-strip \
             CROSS_COMPILE=aarch64-linux-gnu- \
-            CROSS_COMPILE_COMPAT=arm-linux-gnueabi- \
-            Image.gz dtbs
-  
-      - name: Download Official boot.img & AOSP mkbootimg tools
+            CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
+            KCFLAGS="-Wno-error"
+
+      - name: Package with AnyKernel3
         run: |
-          mkdir -p repack_workspace
-          cd repack_workspace
-          echo "Downloading official boot.img"
-          curl -L -o boot.img "https://mirrors.ustc.edu.cn/lineageos/full/kebab/20261009/boot.img"
-          curl -L -o mkbootimg.py https://raw.githubusercontent.com/aosp-mirror/platform_system_tools_mkbootimg/master/mkbootimg.py
-          curl -L -o unpack_bootimg.py https://raw.githubusercontent.com/aosp-mirror/platform_system_tools_mkbootimg/master/unpack_bootimg.py
-          chmod +x mkbootimg.py unpack_bootimg.py
-  
-      - name: Unpack, Replace Kernel, and Repack boot.img
-        run: |
-          cd repack_workspace
-          mkdir unpack_dir
-          echo "Unpacking official boot.img..."
-          MKBOOTIMG_ARGS=$(python3 unpack_bootimg.py --boot_img boot.img --out unpack_dir --format mkbootimg)
-          echo "Parsed AOSP mkbootimg args: $MKBOOTIMG_ARGS"
-          echo "Replacing kernel with newly built Image.gz..."
-          cp ../kernel_workspace/out/arch/arm64/boot/Image.gz unpack_dir/kernel
-          echo "Repacking into new-boot.img..."
-          python3 mkbootimg.py $MKBOOTIMG_ARGS -o new-boot.img
-          echo "Successfully created new-boot.img!"
+          git clone --depth=1 ${{ env.ANYKERNEL3_URL }} AnyKernel3
+          sed -i 's/do.devicecheck=1/do.devicecheck=0/g' AnyKernel3/anykernel.sh
+          if [ -f kernel-workspace/out/arch/arm64/boot/Image ]; then
+            cp kernel-workspace/out/arch/arm64/boot/Image AnyKernel3/
+          fi
+          if [ -f kernel-workspace/out/arch/arm64/boot/dts/vendor/qcom/kona-v2.1.dtb ]; then
+            cp kernel-workspace/out/arch/arm64/boot/dts/vendor/qcom/*.dtb AnyKernel3/dtb/ || true
+          fi
+          cd AnyKernel3
+          zip -r9 ../OnePlus8T-Docker-Kernel.zip * -x .git README.md *placeholder
 
       - name: Upload binary to Release
         uses: softprops/action-gh-release@v3
         with:
           files: |
-            kernel_workspace/out/arch/arm64/boot/Image.gz
-            kernel_workspace/out/arch/arm64/boot/dts/vendor/qcom/*.dtb
-            repack_workspace/new-boot.img
+            OnePlus8T-Docker-Kernel.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
