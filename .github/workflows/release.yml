@@ -10,6 +10,7 @@ env:
   KERNEL_BRANCH: "lineage-23.2"
   DEFCONFIG: "vendor/kona-perf_defconfig"
   ANYKERNEL3_URL: "https://github.com/osm0sis/AnyKernel3"
+  MAKE_OPTS: "CC=clang-12 LD=ld.lld-12 AR=llvm-ar-12 NM=llvm-nm-12 OBJCOPY=llvm-objcopy-12 OBJDUMP=llvm-objdump-12 STRIP=llvm-strip-12 CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi-"
 
 jobs:
   build:
@@ -25,7 +26,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y git ccache flex bison build-essential \
             libssl-dev libelf-dev bc python3 curl wget zip unzip \
-            clang-12 lld-12 llvm-12
+            clang-12 lld-12 llvm-12 gcc-arm-linux-gnueabi binutils-aarch64-linux-gnu
 
       - name: Clone Kernel Source
         run: |
@@ -73,23 +74,14 @@ jobs:
           CONFIG_TUN=y
           CONFIG_BLK_CGROUP=y
           EOF
-          make O=out ARCH=arm64 ${{ env.DEFCONFIG }}
-          ./scripts/kconfig/merge_config.sh -O out out/.config docker.config
+          make O=out ARCH=arm64 ${{ env.DEFCONFIG }} ${{ env.MAKE_OPTS }}
+          ./scripts/kconfig/merge_config.sh -m -O out out/.config docker.config
+          make O=out ARCH=arm64 olddefconfig ${{ env.MAKE_OPTS }}
 
       - name: Build Kernel
         working-directory: kernel-workspace
         run: |
-          make -j$(nproc) O=out ARCH=arm64 \
-            CC=clang \
-            LD=ld.lld \
-            AR=llvm-ar \
-            NM=llvm-nm \
-            OBJCOPY=llvm-objcopy \
-            OBJDUMP=llvm-objdump \
-            STRIP=llvm-strip \
-            CROSS_COMPILE=aarch64-linux-gnu- \
-            CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
-            KCFLAGS="-Wno-error"
+          make -j$(nproc) O=out ARCH=arm64 ${{ env.MAKE_OPTS }} KCFLAGS="-Wno-error"
 
       - name: Package with AnyKernel3
         run: |
@@ -111,3 +103,4 @@ jobs:
             OnePlus8T-Docker-Kernel.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
