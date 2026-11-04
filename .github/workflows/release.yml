@@ -48,10 +48,9 @@ jobs:
       - name: Patch Kernel Source (Fix QC Charger Bug)
         working-directory: kernel-workspace
         run: |
-          FILE="drivers/power/supply/qcom/schgm-flash.c"
-          if [ -f "$FILE" ]; then
-            echo "Patching $FILE ..."
-            sed -i '1i #include "smb5-lib.h"' "$FILE"
+          FILE_FLASH="drivers/power/supply/qcom/schgm-flash.c"
+          if [ -f "$FILE_FLASH" ]; then
+            sed -i '/#include "schgm-flash.h"/i #include "smb5-lib.h"' "$FILE_FLASH"
           fi
 
       - name: Configure Docker Support
