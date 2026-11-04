@@ -10,7 +10,7 @@ env:
   KERNEL_BRANCH: "lineage-23.2"
   DEFCONFIG: "vendor/kona-perf_defconfig"
   ANYKERNEL3_URL: "https://github.com/osm0sis/AnyKernel3"
-  MAKE_OPTS: "CC=clang-12 LD=ld.lld-12 AR=llvm-ar-12 NM=llvm-nm-12 OBJCOPY=llvm-objcopy-12 OBJDUMP=llvm-objdump-12 STRIP=llvm-strip-12 CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi-"
+  MAKE_OPTS: "CC=clang LD=ld.lld AR=llvm-ar NM=llvm-nm OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip READELF=llvm-readelf CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi-"
 
 jobs:
   build:
@@ -95,7 +95,22 @@ jobs:
           CONFIG_TUN=y
           CONFIG_BLK_CGROUP=y
           EOF
+          cat << 'EOF' > fix_oplus.config
+          CONFIG_QPNP_SMB5=y
+          CONFIG_DRM_MSM=y
+          CONFIG_SND_SOC_WCD938X=y
+          CONFIG_SND_SOC_WCD_MBHC=y
+          CONFIG_OPLUS_CHARGER=y
+          CONFIG_OPLUS_CHG=y
+          CONFIG_OPLUS_DISPLAY=y
+          CONFIG_OPLUS_PROJECT=y
+          EOF
           make O=out ARCH=arm64 ${{ env.DEFCONFIG }} ${{ env.MAKE_OPTS }}
+          FRAGS=$(ls arch/arm64/configs/vendor/oplus*.config arch/arm64/configs/vendor/sm8250*.config arch/arm64/configs/vendor/kebab*.config 2>/dev/null | tr '\n' ' ' || true)
+          if [ -n "$FRAGS" ]; then
+            echo "Merging LineageOS specific fragments: $FRAGS"
+            ./scripts/kconfig/merge_config.sh -m -O out out/.config $FRAGS
+          fi
           ./scripts/kconfig/merge_config.sh -m -O out out/.config docker.config
           make O=out ARCH=arm64 olddefconfig ${{ env.MAKE_OPTS }}
 
