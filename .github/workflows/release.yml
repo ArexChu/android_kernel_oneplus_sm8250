@@ -94,7 +94,8 @@ jobs:
       - name: Build Kernel
         working-directory: kernel-workspace
         run: |
-          make -j$(nproc) O=out ARCH=arm64 ${{ env.MAKE_OPTS }} KCFLAGS="-Wno-error"
+          make -j$(nproc) O=out ARCH=arm64 ${{ env.MAKE_OPTS }} KCFLAGS="-Wno-error" || \
+          make -j1 O=out ARCH=arm64 ${{ env.MAKE_OPTS }} KCFLAGS="-Wno-error"
 
       - name: Package with AnyKernel3
         run: |
