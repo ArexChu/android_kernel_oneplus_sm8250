@@ -10,7 +10,8 @@ env:
   KERNEL_BRANCH: "lineage-23.2"
   DEFCONFIG: "vendor/kona-perf_defconfig"
   ANYKERNEL3_URL: "https://github.com/osm0sis/AnyKernel3"
-  MAKE_OPTS: "CC=clang-12 LD=ld.lld-12 AR=llvm-ar-12 NM=llvm-nm-12 OBJCOPY=llvm-objcopy-12 OBJDUMP=llvm-objdump-12 STRIP=llvm-strip-12 CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi-"
+  MAKE_OPTS: "CC=clang-12 LD=ld.lld-12 AR=llvm-ar-12 NM=llvm-nm-12 OBJCOPY=llvm-objcopy-12 OBJDUMP=llvm-objdump-12 STRIP=llvm-strip-12 HOSTCC=clang-12 HOSTCXX=clang++-12 CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi-"
+
 
 jobs:
   build:
