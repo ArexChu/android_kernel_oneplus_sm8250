@@ -95,6 +95,11 @@ jobs:
           CONFIG_CGROUP_BPF=y
           CONFIG_TUN=y
           CONFIG_BLK_CGROUP=y
+          CONFIG_LTO=n
+          CONFIG_LTO_CLANG=n
+          CONFIG_LTO_NONE=y
+          CONFIG_LTO_CLANG_THIN=n
+          CONFIG_LTO_CLANG_FULL=n
           EOF
           make O=out ARCH=arm64 ${{ env.DEFCONFIG }} ${{ env.MAKE_OPTS }}
           ./scripts/kconfig/merge_config.sh -m -O out out/.config docker.config
