@@ -45,6 +45,15 @@ jobs:
         run: |
           git clone --depth=1 -b ${{ env.KERNEL_BRANCH }} ${{ env.KERNEL_SOURCE }} kernel-workspace
 
+      - name: Patch Kernel Source (Fix QC Charger Bug)
+        working-directory: kernel-workspace
+        run: |
+          FILE="drivers/power/supply/qcom/schgm-flash.c"
+          if [ -f "$FILE" ]; then
+            echo "Patching $FILE ..."
+            sed -i '1i #include "smb5-lib.h"' "$FILE"
+          fi
+
       - name: Configure Docker Support
         working-directory: kernel-workspace
         run: |
