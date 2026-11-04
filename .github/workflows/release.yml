@@ -28,6 +28,19 @@ jobs:
             libssl-dev libelf-dev bc python3 curl wget zip unzip \
             clang-12 lld-12 llvm-12 gcc-arm-linux-gnueabi binutils-aarch64-linux-gnu
 
+      - name: Setup Clang 12 Symlinks
+        run: |
+          mkdir -p $HOME/clang-12-bin
+          ln -s /usr/bin/clang-12 $HOME/clang-12-bin/clang
+          ln -s /usr/bin/ld.lld-12 $HOME/clang-12-bin/ld.lld
+          ln -s /usr/bin/llvm-ar-12 $HOME/clang-12-bin/llvm-ar
+          ln -s /usr/bin/llvm-nm-12 $HOME/clang-12-bin/llvm-nm
+          ln -s /usr/bin/llvm-objcopy-12 $HOME/clang-12-bin/llvm-objcopy
+          ln -s /usr/bin/llvm-objdump-12 $HOME/clang-12-bin/llvm-objdump
+          ln -s /usr/bin/llvm-strip-12 $HOME/clang-12-bin/llvm-strip
+          ln -s /usr/bin/llvm-readelf-12 $HOME/clang-12-bin/llvm-readelf
+          echo "$HOME/clang-12-bin" >> $GITHUB_PATH
+
       - name: Clone Kernel Source
         run: |
           git clone --depth=1 -b ${{ env.KERNEL_BRANCH }} ${{ env.KERNEL_SOURCE }} kernel-workspace
