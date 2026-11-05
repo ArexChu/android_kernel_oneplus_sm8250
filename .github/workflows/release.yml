@@ -141,7 +141,23 @@ jobs:
       - name: Package with AnyKernel3
         run: |
           git clone --depth=1 ${{ env.ANYKERNEL3_URL }} AnyKernel3
-          sed -i 's/do.devicecheck=1/do.devicecheck=0/g' AnyKernel3/anykernel.sh
+          cat << 'EOF' > AnyKernel3/anykernel.sh
+          properties() { '
+          kernel.string=OnePlus 8T Docker Kernel
+          do.devicecheck=0
+          do.modules=0
+          do.systemless=1
+          do.cleanup=1
+          do.cleanuponabort=0
+          '; }
+          BLOCK=auto;
+          IS_SLOT_DEVICE=1;
+          RAMDISK_COMPRESSION=auto;
+          PATCH_VBMETA_FLAG=auto;
+          . tools/ak3-core.sh;
+          split_boot;
+          flash_boot;
+          EOF
           if [ -f kernel-workspace/out/arch/arm64/boot/Image ]; then
             cp kernel-workspace/out/arch/arm64/boot/Image AnyKernel3/
           fi
