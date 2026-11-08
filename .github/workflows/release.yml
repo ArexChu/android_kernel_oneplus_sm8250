@@ -130,6 +130,7 @@ jobs:
         run: |
           make -j$(nproc) O=out ARCH=arm64 ${{ env.MAKE_OPTS }} KCFLAGS="-Wno-error" || \
           make -j1 O=out ARCH=arm64 ${{ env.MAKE_OPTS }} KCFLAGS="-Wno-error"
+          ls -lh out/arch/arm64/boot
 
       - name: Package with AnyKernel3
         run: |
@@ -151,11 +152,11 @@ jobs:
           split_boot;
           flash_boot;
           EOF
-          if [ -f kernel-workspace/out/arch/arm64/boot/Image ]; then
-            cp kernel-workspace/out/arch/arm64/boot/Image AnyKernel3/
+          if [ -f out/arch/arm64/boot/Image ]; then
+            cp out/arch/arm64/boot/Image AnyKernel3/
           fi
-          if [ -f kernel-workspace/out/arch/arm64/boot/dts/vendor/qcom/kona-v2.1.dtb ]; then
-            cp kernel-workspace/out/arch/arm64/boot/dts/vendor/qcom/*.dtb AnyKernel3/dtb/ || true
+          if [ -f out/arch/arm64/boot/dts/vendor/qcom/kona-v2.1.dtb ]; then
+            cp out/arch/arm64/boot/dts/vendor/qcom/*.dtb AnyKernel3/dtb/ || true
           fi
           cd AnyKernel3
           zip -r9 ../OnePlus8T-Docker-Kernel.zip * -x .git README.md *placeholder
